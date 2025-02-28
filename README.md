@@ -1,5 +1,4 @@
-# **📌 Step-by-Step Guide to Automate Google Ads Tracking & Optimization**
-### **🛠 What You'll Achieve by the End of This Guide**
+# **Automate Google Ads Tracking & Optimization**
 ✅ Automatically track campaign performance from Google Ads  
 ✅ Get alerts two weeks after a campaign launch  
 ✅ Monitor key changes in bid strategy, CPC, CTR, and conversion rates  
@@ -8,40 +7,30 @@
 
 ---
 
-## **📝 STEP 1: Set Up Your Google Sheet for Tracking**
-✅ **Why?** Your Google Sheet will serve as your **dashboard** for tracking campaigns, storing insights, and receiving AI recommendations.  
+## **📝 STEP 1: Set Up Google Sheet for Tracking**
+**Why?** Google Sheet will serve as a **dashboard** for tracking campaigns, storing insights, and receiving AI recommendations.  
 
-### **📌 What You Need to Do**
 1. Open **Google Sheets** ([click here](https://docs.google.com/spreadsheets/) to go directly) ''' https://docs.google.com/spreadsheets/d/1ETdqTmptBYaTg9zPEYSW99dyNxUh9_LHWVAWLG_jMSM/edit? gid=0#gid=0 '''
-2. Click **Blank Spreadsheet** to create a new one.  
-3. In **Row 1**, enter the following headers:
+2. In **Row 1**, enter the following headers:
    ```
    Campaign Name | Campaign ID | Launch Date | Bid Strategy | CPC | CTR | Conversion Rate | Status | AI Insights | Last Updated
-   ```
-4. Rename the sheet to **"Google Ads Tracker"** (Click on “Untitled spreadsheet” at the top).  
-5. Click **File > Share > Change to Anyone with the Link > Viewer** (you’ll change this later for integrations).  
-
-**🎯 Done!** Your spreadsheet is now ready. Next, we’ll fetch Google Ads data.
+   ``` 
+**🎯 Done!** Next, fetch Google Ads data.
 
 ---
 
-## **📝 STEP 2: Connect Google Ads API to Your Google Sheet**
-✅ **Why?** This allows your spreadsheet to automatically pull **real-time campaign data** from Google Ads.
+## **📝 STEP 2: Connect Google Ads API to Google Sheet**
+✅ **Why?** This allows the spreadsheet to automatically pull **real-time campaign data** from Google Ads.
 
-### **📌 What You Need to Do**
 1. Go to the **Google Ads API Setup Page**: [Google Ads API](https://developers.google.com/google-ads/api).  
 2. Click **"Get Started"** and follow the instructions to create an API key.
-   - Google will guide you to create a **Google Cloud Project** and enable the API.
-   - You may need admin access to your **Google Ads account**.  
+   - Create a **Google Cloud Project** and enable the API.
+   - Admin access to **Google Ads account**.  
 
-3. Once your API key is ready, copy it and **store it somewhere safe** (you’ll need it soon).  
+3. Once the API key is ready, copy it and **store it somewhere safe**.  
 
 ### **🚀 Automating Data Fetching**
-Since you're a non-technical user, **we'll use a pre-built Google Apps Script** to pull data into Google Sheets. Follow these simple steps:
-
-1. Open your **Google Sheet** (**Google Ads Tracker** from Step 1).  
-2. Click **Extensions > Apps Script** (this will open the script editor).  
-3. Delete any text in the editor and **copy-paste** the script below:
+Use the Google Apps Script** to pull data into Google Sheets. Refer to appscript.js
 
    ```javascript
    function fetchGoogleAdsData() {
@@ -81,15 +70,12 @@ Since you're a non-technical user, **we'll use a pre-built Google Apps Script** 
 4. Replace `"YOUR_GOOGLE_ADS_API_KEY"` and `"YOUR_CUSTOMER_ID"` with your actual **Google Ads API key** and **Google Ads Account ID**.  
 5. Click **Save (💾 icon) > Run ▶** (Allow permissions if prompted).  
 
-**🎯 Done!** Your sheet will now fetch real-time campaign data.
-
 ---
 
 ## **📝 STEP 3: Set Up AI-Powered Insights**
 ✅ **Why?** AI will analyze campaign trends and suggest **optimization strategies**.
 
-### **📌 What You Need to Do**
-We'll use **Zapier** (a no-code automation tool) to connect OpenAI's GPT to your Google Sheet.
+Use **Zapier** to connect OpenAI's GPT to Google Sheet.
 
 ### **🚀 Steps to Set Up AI in Zapier**
 1. Go to [Zapier](https://zapier.com) and **Sign Up (free plan works)**.  
@@ -105,14 +91,11 @@ We'll use **Zapier** (a no-code automation tool) to connect OpenAI's GPT to your
    - Choose **"Update Row"** and insert AI-generated insights into the **"AI Insights"** column.
 6. **Test & Turn On Zap**.
 
-**🎯 Done!** Your sheet will now receive AI-generated recommendations.
-
 ---
 
 ## **📝 STEP 4: Automate Alerts for Optimization Windows**
 ✅ **Why?** Get an **automatic alert** two weeks after a campaign launches.
 
-### **📌 What You Need to Do**
 1. Open **Google Sheets**.  
 2. Click **Extensions > Apps Script**.  
 3. Copy & paste the following script:
@@ -135,8 +118,6 @@ We'll use **Zapier** (a no-code automation tool) to connect OpenAI's GPT to your
 
 4. Replace `"your-email@gmail.com"` with your actual email.  
 5. Click **Save > Run ▶**.  
-
-**🎯 Done!** You’ll receive an email **two weeks after a campaign launch**.
 
 ---
 
