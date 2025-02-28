@@ -7,7 +7,7 @@
 
 ---
 
-## **📝 STEP 1: Set Up Google Sheet for Tracking**
+## **STEP 1: Set Up Google Sheet for Tracking**
 **Why?** Google Sheet will serve as a **dashboard** for tracking campaigns, storing insights, and receiving AI recommendations.  
 
 1. Open **Google Sheets** ''' https://docs.google.com/spreadsheets/d/1ETdqTmptBYaTg9zPEYSW99dyNxUh9_LHWVAWLG_jMSM/edit?gid=0#gid=0 '''
@@ -15,11 +15,10 @@
    ```
    Campaign Name | Campaign ID | Launch Date | Bid Strategy | CPC | CTR | Conversion Rate | Status | AI Insights | Last Updated
    ``` 
-**🎯 Done!** Next, fetch Google Ads data.
 
 ---
 
-## **📝 STEP 2: Connect Google Ads API to Google Sheet**
+## **STEP 2: Connect Google Ads API to Google Sheet**
 ✅ **Why?** This allows the spreadsheet to automatically pull **real-time campaign data** from Google Ads.
 
 1. Go to the **Google Ads API Setup Page**: [Google Ads API](https://developers.google.com/google-ads/api).  
@@ -29,7 +28,7 @@
 
 3. Once the API key is ready, copy it and **store it somewhere safe**.  
 
-### **🚀 Automating Data Fetching**
+### **Automating Data Fetching**
 Use the Google Apps Script** to pull data into Google Sheets. Refer to appscript.js
 
    ```javascript
@@ -72,12 +71,12 @@ Use the Google Apps Script** to pull data into Google Sheets. Refer to appscript
 
 ---
 
-## **📝 STEP 3: Set Up AI-Powered Insights**
+## **STEP 3: Set Up AI-Powered Insights**
 ✅ **Why?** AI will analyze campaign trends and suggest **optimization strategies**.
 
 Use **Zapier** to connect OpenAI's GPT to Google Sheet.
 
-### **🚀 Steps to Set Up AI in Zapier**
+### **Steps to Set Up AI in Zapier**
 1. Go to [Zapier](https://zapier.com) and **Sign Up (free plan works)**.  
 2. Click **"Create Zap"**.  
 3. **Trigger**: Select **Google Sheets** and choose:
@@ -93,7 +92,7 @@ Use **Zapier** to connect OpenAI's GPT to Google Sheet.
 
 ---
 
-## **📝 STEP 4: Automate Alerts for Optimization Windows**
+## **STEP 4: Automate Alerts for Optimization Windows**
 ✅ **Why?** Get an **automatic alert** two weeks after a campaign launches.
 
 1. Open **Google Sheets**.  
@@ -121,7 +120,7 @@ Use **Zapier** to connect OpenAI's GPT to Google Sheet.
 
 ---
 
-## **🚀 Wrapping Up**
+## **Wrapping Up**
 🔹 **Google Ads API** pulls campaign data.  
 🔹 **Google Sheets** stores and updates the data.  
 🔹 **AI (GPT-4 via Zapier)** provides insights.  
