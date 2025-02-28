@@ -29,7 +29,7 @@
 3. Once the API key is ready, copy it and **store it somewhere safe**.  
 
 ### **Automating Data Fetching**
-Use the Google Apps Script** to pull data into Google Sheets. Refer to appscript.js
+Use the Google Apps Script** to pull data into Google Sheets. Refer to appScript.js
 
    ```javascript
    function fetchGoogleAdsData() {
