@@ -12,7 +12,7 @@
 ✅ **Why?** Your Google Sheet will serve as your **dashboard** for tracking campaigns, storing insights, and receiving AI recommendations.  
 
 ### **📌 What You Need to Do**
-1. Open **Google Sheets** ([click here](https://docs.google.com/spreadsheets/) to go directly).  
+1. Open **Google Sheets** ([click here](https://docs.google.com/spreadsheets/) to go directly) ''' https://docs.google.com/spreadsheets/d/1ETdqTmptBYaTg9zPEYSW99dyNxUh9_LHWVAWLG_jMSM/edit? gid=0#gid=0 '''
 2. Click **Blank Spreadsheet** to create a new one.  
 3. In **Row 1**, enter the following headers:
    ```
