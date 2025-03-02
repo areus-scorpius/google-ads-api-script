@@ -10,7 +10,7 @@
 ## **STEP 1: Set Up Google Sheet for Tracking**
 **Why?** Google Sheet will serve as a **dashboard** for tracking campaigns, storing insights, and receiving AI recommendations.  
 
-1. Open **Google Sheets** ''' https://docs.google.com/spreadsheets/d/1ETdqTmptBYaTg9zPEYSW99dyNxUh9_LHWVAWLG_jMSM/edit?gid=0#gid=0 '''
+1. Open **Google Sheets** ''' https://docs.google.com/spreadsheets/d/1B52dsYI32ZxxCYx40WOqfzSWy8Zh_fw5K42mNTIqgQo/edit?gid=0#gid=0 '''
 2. In **Row 1**, enter the following headers:
    ```
    Campaign Name | Campaign ID | Launch Date | Bid Strategy | CPC | CTR | Conversion Rate | Status | AI Insights | Last Updated
