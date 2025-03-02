@@ -9,7 +9,6 @@ Below is the **updated workflow and script**
 ---
 
 ## **📝 STEP 1: Set Up Google Sheets for Advanced Tracking**
-### **📌 What You Need to Do**
 1. Open **Google Sheets** ([click here](https://docs.google.com/spreadsheets/)).  
 2. Click **Blank Spreadsheet** and rename it to **"Google Ads Change Tracker"**.  
 3. In **Row 1**, enter the following headers:
@@ -18,12 +17,9 @@ Below is the **updated workflow and script**
    ```
 4. Click **File > Share > Change to Anyone with the Link > Viewer**.  
 
-**🎯 Done!** Your spreadsheet is ready.
-
 ---
 
 ## **📝 STEP 2: Connect Google Ads API for Tracking Changes**
-### **📌 What You Need to Do**
 1. **Set up Google Ads API** ([Guide](https://developers.google.com/google-ads/api/docs/start)).  
    - Enable **Google Ads API** in your Google Cloud project.  
    - Get your **API Key** and **Google Ads Account ID**.  
@@ -36,7 +32,6 @@ Below is the **updated workflow and script**
 ---
 
 ## **📝 STEP 3: Automate AI Insights & Alerts**
-### **📌 What You Need to Do**
 1. Use **Zapier** to connect **OpenAI** to Google Sheets.  
 2. Follow the same **Zapier AI integration** steps as before.  
 3. Use this updated **prompt** in Zapier:  
