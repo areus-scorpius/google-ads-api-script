@@ -9,7 +9,7 @@ Below is the **updated workflow and script**
 ---
 
 ## **📝 STEP 1: Set Up Google Sheets for Advanced Tracking**
-1. Open **Google Sheets** ([click here](https://docs.google.com/spreadsheets/)).  
+1. Open **Google Sheets template** ([click here](https://docs.google.com/spreadsheets/d/1B52dsYI32ZxxCYx40WOqfzSWy8Zh_fw5K42mNTIqgQo/edit?gid=0#gid=0)).  
 2. Click **Blank Spreadsheet** and rename it to **"Google Ads Change Tracker"**.  
 3. In **Row 1**, enter the following headers:
    ```
