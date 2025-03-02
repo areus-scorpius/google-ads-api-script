@@ -1,6 +1,8 @@
-Got it! Below is the updated workflow and script to accommodate your new requirements. The system will now:
-
-✅ Track changes in bid strategy and budget (Scenario 1)✅ Monitor keyword & audience changes if no budget/bid changes (Scenario 2)✅ Detect sudden CPC & CTR spikes/drops (Scenario 3)✅ Automatically update Google Sheets with data from 14 days before and after each change event✅ Fetch auction insights if there are drastic CPC/CTR changes
+Below is the updated workflow and script
+✅ Track changes in bid strategy and budget (Scenario 1)
+✅ Monitor keyword & audience changes if no budget/bid changes (Scenario 2)
+✅ Detect sudden CPC & CTR spikes/drops (Scenario 3)
+✅ Automatically update Google Sheets with data from 14 days before and after each change event✅ Fetch auction insights if there are drastic CPC/CTR changes
 
 📝 STEP 1: Set Up Google Sheets for Advanced Tracking
 
@@ -157,4 +159,7 @@ Analyze the Google Ads campaign data and provide recommendations: CPC Before: {{
 
 🚀 Wrapping Up
 
-🔹 Automatically track bid strategy, budget, keywords, and audience changes.🔹 Detect sudden CPC & CTR spikes/drops and log auction insights.🔹 AI generates insights based on historical performance.🔹 Alerts notify managers of critical changes.
+🔹 Automatically track bid strategy, budget, keywords, and audience changes.
+🔹 Detect sudden CPC & CTR spikes/drops and log auction insights.
+🔹 AI generates insights based on historical performance.
+🔹 Alerts notify managers of critical changes.
