@@ -1,127 +1,160 @@
-# **Automate Google Ads Tracking & Optimization**
-✅ Automatically track campaign performance from Google Ads  
-✅ Get alerts two weeks after a campaign launch  
-✅ Monitor key changes in bid strategy, CPC, CTR, and conversion rates  
-✅ Use AI to detect patterns and suggest improvements  
-✅ Have everything neatly organized in a Google Sheet  
+Got it! Below is the updated workflow and script to accommodate your new requirements. The system will now:
 
----
+✅ Track changes in bid strategy and budget (Scenario 1)✅ Monitor keyword & audience changes if no budget/bid changes (Scenario 2)✅ Detect sudden CPC & CTR spikes/drops (Scenario 3)✅ Automatically update Google Sheets with data from 14 days before and after each change event✅ Fetch auction insights if there are drastic CPC/CTR changes
 
-## **STEP 1: Set Up Google Sheet for Tracking**
-**Why?** Google Sheet will serve as a **dashboard** for tracking campaigns, storing insights, and receiving AI recommendations.  
+📝 STEP 1: Set Up Google Sheets for Advanced Tracking
 
-1. Open **Google Sheets** ''' https://docs.google.com/spreadsheets/d/1B52dsYI32ZxxCYx40WOqfzSWy8Zh_fw5K42mNTIqgQo/edit?gid=0#gid=0 '''
-2. In **Row 1**, enter the following headers:
-   ```
-   Campaign Name | Campaign ID | Launch Date | Bid Strategy | CPC | CTR | Conversion Rate | Status | AI Insights | Last Updated
-   ``` 
+📌 What You Need to Do
 
----
+Open Google Sheets.
 
-## **STEP 2: Connect Google Ads API to Google Sheet**
-✅ **Why?** This allows the spreadsheet to automatically pull **real-time campaign data** from Google Ads.
+Click Blank Spreadsheet and rename it to "Google Ads Change Tracker".
 
-1. Go to the **Google Ads API Setup Page**: [Google Ads API](https://developers.google.com/google-ads/api).  
-2. Click **"Get Started"** and follow the instructions to create an API key.
-   - Create a **Google Cloud Project** and enable the API.
-   - Admin access to **Google Ads account**.  
+In Row 1, enter the following headers:
 
-3. Once the API key is ready, copy it and **store it somewhere safe**.  
+Campaign Name | Campaign ID | CPC Before | CPC After | CTR Before | CTR After | Conversion Rate Before | Conversion Rate After | Changes Events | Change Events ID | Change Event Date | Change Event Summary | Auction Insights | AI Insights
 
-### **Automating Data Fetching**
-Use the Google Apps Script** to pull data into Google Sheets. Refer to appScript.js
+Click File > Share > Change to Anyone with the Link > Viewer.
 
-   ```javascript
-   function fetchGoogleAdsData() {
-     var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Google Ads Tracker");
-     var apiKey = "YOUR_GOOGLE_ADS_API_KEY";  // Replace with your actual API Key
+🎯 Done! Your spreadsheet is ready.
 
-     var url = "https://googleads.googleapis.com/v11/customers/YOUR_CUSTOMER_ID/googleAds:search?query=SELECT campaign.id, campaign.name, campaign.status, campaign.start_date, campaign.bidding_strategy_type, metrics.average_cpc, metrics.ctr, metrics.conversions FROM campaign WHERE campaign.status='ENABLED'";
+📝 STEP 2: Connect Google Ads API for Tracking Changes
 
-     var options = {
-       "method": "get",
-       "headers": {
-         "Authorization": "Bearer " + apiKey,
-         "Content-Type": "application/json"
-       }
-     };
+📌 What You Need to Do
 
-     var response = UrlFetchApp.fetch(url, options);
-     var data = JSON.parse(response.getContentText());
+Set up Google Ads API (Guide).
 
-     var campaigns = data.results;
-     sheet.getRange("A2:H").clearContent();  // Clear old data
-     campaigns.forEach(function(campaign, index) {
-       sheet.getRange(index + 2, 1).setValue(campaign.campaign.name);
-       sheet.getRange(index + 2, 2).setValue(campaign.campaign.id);
-       sheet.getRange(index + 2, 3).setValue(campaign.campaign.start_date);
-       sheet.getRange(index + 2, 4).setValue(campaign.campaign.bidding_strategy_type);
-       sheet.getRange(index + 2, 5).setValue(campaign.metrics.average_cpc);
-       sheet.getRange(index + 2, 6).setValue(campaign.metrics.ctr);
-       sheet.getRange(index + 2, 7).setValue(campaign.metrics.conversions);
-       sheet.getRange(index + 2, 8).setValue(campaign.campaign.status);
-     });
+Enable Google Ads API in your Google Cloud project.
 
-     sheet.getRange("J1").setValue("Last Updated: " + new Date());
-   }
-   ```
+Get your API Key and Google Ads Account ID.
 
-4. Replace `"YOUR_GOOGLE_ADS_API_KEY"` and `"YOUR_CUSTOMER_ID"` with your actual **Google Ads API key** and **Google Ads Account ID**.  
-5. Click **Save (💾 icon) > Run ▶** (Allow permissions if prompted).  
+Copy and save them for later use.
 
----
+Open Google Sheets and click Extensions > Apps Script.
 
-## **STEP 3: Set Up AI-Powered Insights**
-✅ **Why?** AI will analyze campaign trends and suggest **optimization strategies**.
+Delete any existing code and copy-paste the script below:
 
-Use **Zapier** to connect OpenAI's GPT to Google Sheet.
+🚀 Google Apps Script to Track Changes
 
-### **Steps to Set Up AI in Zapier**
-1. Go to [Zapier](https://zapier.com) and **Sign Up (free plan works)**.  
-2. Click **"Create Zap"**.  
-3. **Trigger**: Select **Google Sheets** and choose:
-   - Event: **New or Updated Row**
-   - Connect your **Google Account** and select **Google Ads Tracker** sheet.
-4. **Action**: Select **OpenAI (GPT-4)** and choose:
-   - Event: **Generate AI Text**
-   - Prompt: `"Analyze the following Google Ads campaign data and provide optimization suggestions: Bid Strategy: {{Bid Strategy}}, CPC: {{CPC}}, CTR: {{CTR}}, Conversions: {{Conversion Rate}}."`
-5. **Update Google Sheet**:
-   - Add another **Google Sheets action**.
-   - Choose **"Update Row"** and insert AI-generated insights into the **"AI Insights"** column.
-6. **Test & Turn On Zap**.
+function trackGoogleAdsChanges() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Google Ads Change Tracker");
+  var apiKey = "YOUR_GOOGLE_ADS_API_KEY";  // Replace with your API Key
+  var customerId = "YOUR_CUSTOMER_ID";  // Replace with your Google Ads Account ID
 
----
+  // Get Google Ads Data for Key Changes (Scenario 1)
+  var url = `https://googleads.googleapis.com/v11/customers/${customerId}/googleAds:search?query=
+  SELECT campaign.id, campaign.name, campaign.start_date, campaign.bidding_strategy_type, 
+  campaign_budget.amount_micros, campaign_budget.id, ad_group_criterion.criterion_id, 
+  ad_group_criterion.keyword.text, ad_group_criterion.keyword.match_type, 
+  ad_group_criterion.status, metrics.average_cpc, metrics.ctr, metrics.conversions 
+  FROM campaign WHERE campaign.status='ENABLED'`;
 
-## **STEP 4: Automate Alerts for Optimization Windows**
-✅ **Why?** Get an **automatic alert** two weeks after a campaign launches.
+  var options = {
+    "method": "get",
+    "headers": {
+      "Authorization": "Bearer " + apiKey,
+      "Content-Type": "application/json"
+    }
+  };
 
-1. Open **Google Sheets**.  
-2. Click **Extensions > Apps Script**.  
-3. Copy & paste the following script:
+  var response = UrlFetchApp.fetch(url, options);
+  var data = JSON.parse(response.getContentText());
 
-   ```javascript
-   function sendOptimizationAlert() {
-     var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Google Ads Tracker");
-     var data = sheet.getDataRange().getValues();
-     var today = new Date();
-     data.forEach(function(row, index) {
-       if (index === 0) return;  // Skip header row
-       var launchDate = new Date(row[2]); // Column C (Launch Date)
-       var diffDays = Math.floor((today - launchDate) / (1000 * 60 * 60 * 24));
-       if (diffDays === 14) {
-         MailApp.sendEmail("your-email@gmail.com", "Optimization Alert", "Campaign " + row[0] + " needs review after 2 weeks.");
-       }
-     });
-   }
-   ```
+  var campaigns = data.results;
+  var lastRow = sheet.getLastRow() + 1;
 
-4. Replace `"your-email@gmail.com"` with your actual email.  
-5. Click **Save > Run ▶**.  
+  campaigns.forEach(function(campaign) {
+    var campaignName = campaign.campaign.name;
+    var campaignId = campaign.campaign.id;
+    var cpc = campaign.metrics.average_cpc / 1e6; // Convert from micros to actual value
+    var ctr = campaign.metrics.ctr;
+    var conversions = campaign.metrics.conversions;
+    var bidStrategy = campaign.campaign.bidding_strategy_type;
+    var budget = campaign.campaign_budget.amount_micros / 1e6; // Convert from micros
+    var changeSummary = "";
+    var changeEventID = Utilities.getUuid();
+    var changeDate = new Date();
 
----
+    // Check for bid strategy & budget changes (Scenario 1)
+    var lastRowData = sheet.getRange(lastRow - 1, 1, 1, 14).getValues();
+    if (lastRowData.length > 0) {
+      var prevBidStrategy = lastRowData[0][8];
+      var prevBudget = lastRowData[0][9];
 
-## **Wrapping Up**
-🔹 **Google Ads API** pulls campaign data.  
-🔹 **Google Sheets** stores and updates the data.  
-🔹 **AI (GPT-4 via Zapier)** provides insights.  
-🔹 **Alerts notify you when action is needed.**  
+      if (prevBidStrategy !== bidStrategy || prevBudget !== budget) {
+        changeSummary = `Bid Strategy changed from ${prevBidStrategy} to ${bidStrategy}, Budget changed from ${prevBudget} to ${budget}`;
+      }
+    }
+
+    // Check for keyword and audience changes (Scenario 2)
+    var keywords = campaign.ad_group_criterion.keyword.text;
+    var matchType = campaign.ad_group_criterion.keyword.match_type;
+    var status = campaign.ad_group_criterion.status;
+    if (!changeSummary && (keywords || matchType !== "EXACT" || status !== "ENABLED")) {
+      changeSummary = `Keyword changes detected: ${keywords} with ${matchType} match.`;
+    }
+
+    // Check for CPC and CTR sudden changes (Scenario 3)
+    var lastWeekCPC = lastRowData[0][2];
+    var lastWeekCTR = lastRowData[0][4];
+    if (!changeSummary && (cpc > lastWeekCPC * 1.5 || cpc < lastWeekCPC * 0.5)) {
+      changeSummary = `CPC changed significantly from ${lastWeekCPC} to ${cpc}`;
+    }
+    if (!changeSummary && (ctr > lastWeekCTR * 1.5 || ctr < lastWeekCTR * 0.5)) {
+      changeSummary = `CTR changed significantly from ${lastWeekCTR} to ${ctr}`;
+    }
+
+    // Insert data into the sheet
+    sheet.appendRow([
+      campaignName, campaignId, lastWeekCPC, cpc, lastWeekCTR, ctr, 
+      lastRowData[0][6], conversions, changeSummary, changeEventID, changeDate, "", "", ""
+    ]);
+  });
+
+  // Fetch auction insights if CPC or CTR changed significantly
+  fetchAuctionInsights();
+}
+
+function fetchAuctionInsights() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Google Ads Change Tracker");
+  var apiKey = "YOUR_GOOGLE_ADS_API_KEY";  
+  var customerId = "YOUR_CUSTOMER_ID";  
+
+  var url = `https://googleads.googleapis.com/v11/customers/${customerId}/googleAds:search?query=
+  SELECT auction_insight.domain, auction_insight.impression_share, auction_insight.average_position 
+  FROM campaign WHERE campaign.status='ENABLED'`;
+
+  var options = {
+    "method": "get",
+    "headers": {
+      "Authorization": "Bearer " + apiKey,
+      "Content-Type": "application/json"
+    }
+  };
+
+  var response = UrlFetchApp.fetch(url, options);
+  var data = JSON.parse(response.getContentText());
+
+  var auctionInsights = data.results;
+  auctionInsights.forEach(function(auction, index) {
+    sheet.getRange(index + 2, 13).setValue(`Domain: ${auction.auction_insight.domain}, 
+      Impression Share: ${auction.auction_insight.impression_share}, 
+      Avg Position: ${auction.auction_insight.average_position}`);
+  });
+}
+
+📝 STEP 3: Automate AI Insights & Alerts
+
+📌 What You Need to Do
+
+Use Zapier to connect OpenAI to Google Sheets.
+
+Follow the same Zapier AI integration steps as before.
+
+Use this updated prompt in Zapier:
+
+Analyze the Google Ads campaign data and provide recommendations: CPC Before: {{CPC Before}}, CPC After: {{CPC After}}, CTR Before: {{CTR Before}}, CTR After: {{CTR After}}, Change Event Summary: {{Change Event Summary}}.
+
+🚀 Wrapping Up
+
+🔹 Automatically track bid strategy, budget, keywords, and audience changes.🔹 Detect sudden CPC & CTR spikes/drops and log auction insights.🔹 AI generates insights based on historical performance.🔹 Alerts notify managers of critical changes.
