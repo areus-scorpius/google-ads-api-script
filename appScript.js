@@ -13,7 +13,7 @@ function fetchGoogleAdsData() {
     "method": "post",
     "headers": {
       "Authorization": "Bearer " + accessToken,
-      "developer-token": "o0IezaS_9JsvD6F1RjoaSQ", // Check if it's approved
+      "developer-token": "abc", // Check if it's approved
       "login-customer-id": customerId, // Required for MCC accounts
       "Content-Type": "application/json"
     },
