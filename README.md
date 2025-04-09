@@ -1,48 +1,127 @@
-Below is the **updated workflow and script**
+# Google Ads Change Monitoring Tool
 
-✅ **Track changes in bid strategy and budget (Scenario 1)**  
-✅ **Monitor keyword & audience changes if no budget/bid changes (Scenario 2)**  
-✅ **Detect sudden CPC & CTR spikes/drops (Scenario 3)**  
-✅ **Automatically update Google Sheets with data from 14 days before and after each change event**  
-✅ **Fetch auction insights if there are drastic CPC/CTR changes**  
+A Google Apps Script tool for monitoring changes in Google Ads accounts and analyzing their impact on performance metrics over time.
 
----
+## Overview
 
-## **📝 STEP 1: Set Up Google Sheets for Advanced Tracking**
-1. Open **Google Sheets template** ([click here](https://docs.google.com/spreadsheets/d/1B52dsYI32ZxxCYx40WOqfzSWy8Zh_fw5K42mNTIqgQo/edit?gid=0#gid=0)).  
-2. Click **Blank Spreadsheet** and rename it to **"Google Ads Change Tracker"**.  
-3. In **Row 1**, enter the following headers:
-   ```
-   Campaign Name | Campaign ID | CPC Before | CPC After | CTR Before | CTR After | Conversion Rate Before | Conversion Rate After | Changes Events | Change Events ID | Change Event Date | Change Event Summary | Auction Insights | AI Insights
-   ```
-4. Click **File > Share > Change to Anyone with the Link > Viewer**.  
+This script automatically detects changes made to your Google Ads campaigns (bidding strategies, budgets, keywords, audiences, etc.), records performance metrics before the change, and then compares them with metrics after the change to provide objective analysis of impact.
 
----
+## Features
 
-## **📝 STEP 2: Connect Google Ads API for Tracking Changes**
-1. **Set up Google Ads API** ([Guide](https://developers.google.com/google-ads/api/docs/start)).  
-   - Enable **Google Ads API** in your Google Cloud project.  
-   - Get your **API Key** and **Google Ads Account ID**.  
-   - Copy and save them for later use.  
+- **Automated Change Detection**: Detects changes to bidding strategies, budgets, keywords, audiences, and geographic targeting
+- **Performance Tracking**: Records CPC, CTR, and conversion rate before and after changes
+- **AI-Powered Analysis**: Automatically generates insights about the impact of changes
+- **Comprehensive Logging**: Maintains detailed records of all changes and their effects
+- **Low Maintenance**: Runs automatically on a daily schedule
 
-2. **Open Google Sheets** and click **Extensions > Apps Script**.  
+## Prerequisites
 
-3. Copy-paste the script -- See appScript.js
+- Google Ads account with API access
+- Google Cloud Platform project with Google Ads API enabled
+- Google Ads API Developer Token
+- OAuth 2.0 credentials (Client ID and Client Secret)
+- Google Sheet to store the monitoring data
 
----
+## Setup Instructions
 
-## **📝 STEP 3: Automate AI Insights & Alerts**
-1. Use **Zapier** to connect **OpenAI** to Google Sheets.  
-2. Follow the same **Zapier AI integration** steps as before.  
-3. Use this updated **prompt** in Zapier:  
-   ```
-   Analyze the Google Ads campaign data and provide recommendations: CPC Before: {{CPC Before}}, CPC After: {{CPC After}}, CTR Before: {{CTR Before}}, CTR After: {{CTR After}}, Change Event Summary: {{Change Event Summary}}.
-   ```
+### 1. Create Google Sheet
 
----
+Create a Google Sheet with the following worksheets:
+- **Budget Monitoring**: Tracks bid and budget changes
+- **Audience Monitoring**: Tracks keyword and audience changes
+- **campaignIgnore**: Manages change tracking records
 
-## **🚀 Wrapping Up**
-🔹 **Automatically track** bid strategy, budget, keywords, and audience changes.  
-🔹 **Detect sudden CPC & CTR spikes/drops** and log auction insights.  
-🔹 **AI generates insights** based on historical performance.  
-🔹 **Alerts notify** managers of critical changes.  
+Each monitoring sheet should have these columns:
+```
+Campaign Name | Campaign ID | CPC Before | CPC After | CTR Before | CTR After | Conversion Rate Before | Conversion Rate After | Changes Events | Change Events ID | Change Event Date | Change Event Summary | Auction Insights
+```
+
+The campaignIgnore sheet should have these columns:
+```
+Tab | Campaign ID | Change Events ID | Change Event Date
+```
+
+### 2. Set Up OAuth and API Access
+
+1. Create a GCP project at [Google Cloud Console](https://console.cloud.google.com/)
+2. Enable the Google Ads API
+3. Set up OAuth 2.0 credentials (Client ID and Client Secret)
+4. Generate a refresh token for your Google Ads account
+5. Obtain a Developer Token from your Google Ads manager account
+
+### 3. Deploy the Script
+
+1. Open your Google Sheet
+2. Go to Extensions → Apps Script
+3. Copy and paste the entire script into the Apps Script editor
+4. Update the CONFIG object with your credentials:
+
+```javascript
+const CONFIG = {
+  CLIENT_ID: 'YOUR_CLIENT_ID_HERE',
+  CLIENT_SECRET: 'YOUR_CLIENT_SECRET_HERE',
+  REFRESH_TOKEN: 'YOUR_REFRESH_TOKEN_HERE',
+  CUSTOMER_ID: 'YOUR_CUSTOMER_ID_HERE', // Regular account
+  LOGIN_CUSTOMER_ID: 'YOUR_MCC_ID_HERE', // MCC account if applicable
+  SPREADSHEET_ID: 'YOUR_SPREADSHEET_ID_HERE',
+  DEVELOPER_TOKEN: 'YOUR_DEVELOPER_TOKEN_HERE',
+  DAYS_BEFORE: 14
+};
+```
+
+### 4. Set Up a Trigger
+
+1. In the Apps Script editor, click on Triggers in the left sidebar
+2. Click "+ Add Trigger"
+3. Configure a daily trigger to run the `runMonitoring` function
+
+## Using the Tool
+
+The script will run automatically according to your trigger settings. You can also use the custom menu to run functions manually:
+
+1. **🔐 Unlock Token**: Refreshes the OAuth token
+2. **🔓 Fetch 24hrs**: Manually checks for changes in the last 24 hours
+3. **🧠 Update AI Insights**: Generates insights for changes with complete before/after data
+
+## How It Works
+
+1. The script checks for changes to your Google Ads account in the last 24 hours
+2. When a change is detected, it records the details and captures performance metrics for the 14 days before the change
+3. After 14 days, it automatically captures performance metrics for the period after the change
+4. For completed records (with both before and after data), it can generate AI-powered insights about the impact
+
+## Security Considerations
+
+- Never share your Developer Token, Client Secret, or Refresh Token
+- Consider using Script Properties to store sensitive credentials instead of hardcoding them
+- Regularly rotate your OAuth credentials
+
+## Troubleshooting
+
+Common issues and their solutions:
+
+- **Authentication errors**: Run the "Unlock Token" function to refresh the access token
+- **API errors**: Check the Logs in Apps Script for detailed error messages
+- **Missing data**: Ensure your Google Ads account has sufficient historical data
+
+## Customization
+
+The script can be customized in several ways:
+
+- Change the `DAYS_BEFORE` value to adjust the comparison timeframe
+- Modify the queries to track different types of changes
+- Update the performance metrics collected in the `getPerformanceData` function
+
+## Version History
+
+- **v1-3**: Basic change monitoring with 24-hour lookback
+- **v4-6**: Added result limits and improved date handling
+- **v7-9**: Enhanced data processing, AI insights, and error handling
+
+## License
+
+This script is provided as-is for educational and practical purposes. Use at your own discretion.
+
+## Acknowledgements
+
+This tool leverages the Google Ads API, Google Apps Script, and Google Sheets to create a powerful yet accessible monitoring system.
