@@ -1,127 +1,110 @@
-# Google Ads Change Monitoring Tool
+# Google Ads Change Monitoring Script README
 
-A Google Apps Script tool for monitoring changes in Google Ads accounts and analyzing their impact on performance metrics over time.
+## TLDR
+This script automatically monitors changes in Google Ads accounts (budgets, bids, keywords, audiences), tracks performance metrics before and after these changes, and generates insights on the impact of these modifications.
 
 ## Overview
 
-This script automatically detects changes made to your Google Ads campaigns (bidding strategies, budgets, keywords, audiences, etc.), records performance metrics before the change, and then compares them with metrics after the change to provide objective analysis of impact.
+This Google Apps Script connects to the Google Ads API to monitor account changes and analyze their impact on performance. The script:
 
-## Features
+- Detects changes to budgets, bidding strategies, keywords, audiences, and other campaign elements
+- Records these changes in a Google Sheet with performance metrics (CPC, CTR, conversion rates) from before the change
+- Continues monitoring performance metrics after the change (for up to 14 days or until the next change)
+- Generates insights that highlight the percentage changes in key metrics
 
-- **Automated Change Detection**: Detects changes to bidding strategies, budgets, keywords, audiences, and geographic targeting
-- **Performance Tracking**: Records CPC, CTR, and conversion rate before and after changes
-- **AI-Powered Analysis**: Automatically generates insights about the impact of changes
-- **Comprehensive Logging**: Maintains detailed records of all changes and their effects
-- **Low Maintenance**: Runs automatically on a daily schedule
+The script outputs data to two main spreadsheets:
+- **Budget Monitoring**: The primary sheet that contains all detected changes, performance metrics, and insights
+- **campaignIgnore**: A tracking sheet that helps prevent duplicate processing of changes
 
-## Prerequisites
+The monitoring process looks at a 14-day window before changes to establish baseline performance and then tracks metrics after changes to quantify their impact. When a campaign has multiple changes, the script identifies these "cut-off" events and adjusts the analysis periods accordingly.
 
-- Google Ads account with API access
-- Google Cloud Platform project with Google Ads API enabled
-- Google Ads API Developer Token
-- OAuth 2.0 credentials (Client ID and Client Secret)
-- Google Sheet to store the monitoring data
+## Functions
 
-## Setup Instructions
+### Authentication and Setup
+- `refreshAccessToken()`: Manually refreshes the OAuth token needed for Google Ads API access
+- `getAccessToken()`: Retrieves the current token or gets a new one if needed
+- `onOpen()`: Creates a custom menu in the spreadsheet for manual operations
 
-### 1. Create Google Sheet
+### Main Operations
+- `runMonitoring()`: The primary function that orchestrates the entire monitoring process
+- `ensureCutoffInsightsColumn()`: Ensures the "Cut-off Insights" column exists in the spreadsheet
+- `fixEmptyMetricsValues()`: Replaces empty values in metrics columns with zeros
+- `reformatChangeSummaries()`: Improves the formatting of change descriptions
 
-Create a Google Sheet with the following worksheets:
-- **Budget Monitoring**: Tracks bid and budget changes
-- **Audience Monitoring**: Tracks keyword and audience changes
-- **campaignIgnore**: Manages change tracking records
+### Change Detection
+- `checkBidBudgetChanges()`: Queries the API for changes related to bids and budgets
+- `checkKeywordAudienceChanges()`: Queries the API for changes related to keywords and audiences
+- `processChangeEvents()`: Filters and processes the change events returned from API queries
+- `callGoogleAdsApi()`: Executes the API requests with error handling and token refreshing
 
-Each monitoring sheet should have these columns:
-```
-Campaign Name | Campaign ID | CPC Before | CPC After | CTR Before | CTR After | Conversion Rate Before | Conversion Rate After | Changes Events | Change Events ID | Change Event Date | Change Event Summary | Auction Insights
-```
+### Processing and Analysis
+- `processChanges()`: Adds detected changes to the spreadsheet with performance data
+- `getPerformanceData()`: Retrieves performance metrics for a campaign during a specified date range
+- `createHumanReadableSummary()`: Creates readable descriptions of technical changes
+- `createFormattedBudgetSummary()`: Formats budget changes from raw API data
+- `formatBiddingStrategyChange()`: Formats bidding strategy changes from raw API data
 
-The campaignIgnore sheet should have these columns:
-```
-Tab | Campaign ID | Change Events ID | Change Event Date
-```
+### Follow-up Analysis
+- `checkCutoffAndFourteenDayUpdates()`: Updates performance data after the change period
+- `calculatePercentChange()`: Calculates percentage changes between before/after metrics
+- `formatMetricChanges()`: Creates human-readable descriptions of metric changes
+- `updateCutoffInsights()`: Manually triggers updates to the insights for existing changes
 
-### 2. Set Up OAuth and API Access
+### Helper Functions
+- `extractBiddingStrategyType()`: Determines the bidding strategy type from campaign data
+- `extractBidValue()`: Extracts the bid value based on the strategy type
+- `formatStrategyName()`: Converts technical strategy names to readable format
 
-1. Create a GCP project at [Google Cloud Console](https://console.cloud.google.com/)
-2. Enable the Google Ads API
-3. Set up OAuth 2.0 credentials (Client ID and Client Secret)
-4. Generate a refresh token for your Google Ads account
-5. Obtain a Developer Token from your Google Ads manager account
+## Rules and Limitations
 
-### 3. Deploy the Script
+- **API Access**: Requires proper Google Ads API credentials and OAuth setup
+- **Data Freshness**: The script should be run daily to capture all changes (ideally with a time-based trigger)
+- **Rate Limits**: Subject to Google Ads API rate limits, which may cause issues with very large accounts
+- **Overlapping Changes**: When multiple changes occur close together, impact analysis becomes less precise
+- **Sheet Structure**: Requires specific columns in the Budget Monitoring and campaignIgnore sheets
+- **Metrics Delay**: Google Ads data may have reporting delays affecting same-day analysis
+- **Change Detection**: Limited to changes that are visible through the Google Ads API change history
 
-1. Open your Google Sheet
-2. Go to Extensions → Apps Script
-3. Copy and paste the entire script into the Apps Script editor
-4. Update the CONFIG object with your credentials:
+## How to Use
 
-```javascript
-const CONFIG = {
-  CLIENT_ID: 'YOUR_CLIENT_ID_HERE',
-  CLIENT_SECRET: 'YOUR_CLIENT_SECRET_HERE',
-  REFRESH_TOKEN: 'YOUR_REFRESH_TOKEN_HERE',
-  CUSTOMER_ID: 'YOUR_CUSTOMER_ID_HERE', // Regular account
-  LOGIN_CUSTOMER_ID: 'YOUR_MCC_ID_HERE', // MCC account if applicable
-  SPREADSHEET_ID: 'YOUR_SPREADSHEET_ID_HERE',
-  DEVELOPER_TOKEN: 'YOUR_DEVELOPER_TOKEN_HERE',
-  DAYS_BEFORE: 14
-};
-```
+### Initial Setup
 
-### 4. Set Up a Trigger
+1. **Configure the Script**:
+   - Update the `CONFIG` object with your Google Ads API credentials and spreadsheet ID
+   - Set the correct customer IDs for the account you want to monitor
 
-1. In the Apps Script editor, click on Triggers in the left sidebar
-2. Click "+ Add Trigger"
-3. Configure a daily trigger to run the `runMonitoring` function
+2. **Prepare the Spreadsheets**:
+   - Create a "Budget Monitoring" sheet with the required columns
+   - Create a "campaignIgnore" sheet with columns for tracking processed changes
 
-## Using the Tool
+3. **Deploy the Script**:
+   - Save the script in Google Apps Script editor
+   - Run the `onOpen()` function once to create the custom menu
+   - Grant necessary permissions when prompted
 
-The script will run automatically according to your trigger settings. You can also use the custom menu to run functions manually:
+### Daily Operation
 
-1. **🔐 Unlock Token**: Refreshes the OAuth token
-2. **🔓 Fetch 24hrs**: Manually checks for changes in the last 24 hours
-3. **🧠 Update AI Insights**: Generates insights for changes with complete before/after data
+1. **Manual Execution**:
+   - Open the spreadsheet
+   - Use the "🎛️ Console 🎛️" menu to run operations:
+     - "🔐 Unlock Token" to refresh the access token
+     - "🔓 Fetch 24hrs" to detect changes from the past 24 hours
+     - "📊 Update Cut-off Insights" to update metrics for existing changes
 
-## How It Works
+2. **Automated Execution**:
+   - Set up a time-driven trigger to run `runMonitoring()` daily
+   - Recommended to run in the morning to capture previous day's changes
 
-1. The script checks for changes to your Google Ads account in the last 24 hours
-2. When a change is detected, it records the details and captures performance metrics for the 14 days before the change
-3. After 14 days, it automatically captures performance metrics for the period after the change
-4. For completed records (with both before and after data), it can generate AI-powered insights about the impact
+### Reading Results
 
-## Security Considerations
+1. **Budget Monitoring Sheet**:
+   - Review newly added changes
+   - Check the "Change Event Summary" column for a description of each change
+   - After 14 days (or when cut off by a newer change), check the "Cut-off Insights" column for performance impact
 
-- Never share your Developer Token, Client Secret, or Refresh Token
-- Consider using Script Properties to store sensitive credentials instead of hardcoding them
-- Regularly rotate your OAuth credentials
+2. **Troubleshooting**:
+   - Check the Apps Script execution logs for error messages
+   - If changes are missing, verify API access and try running "🔐 Unlock Token"
+   - For missing insights, run "📊 Update Cut-off Insights" manually
 
-## Troubleshooting
-
-Common issues and their solutions:
-
-- **Authentication errors**: Run the "Unlock Token" function to refresh the access token
-- **API errors**: Check the Logs in Apps Script for detailed error messages
-- **Missing data**: Ensure your Google Ads account has sufficient historical data
-
-## Customization
-
-The script can be customized in several ways:
-
-- Change the `DAYS_BEFORE` value to adjust the comparison timeframe
-- Modify the queries to track different types of changes
-- Update the performance metrics collected in the `getPerformanceData` function
-
-## Version History
-
-- **v1-3**: Basic change monitoring with 24-hour lookback
-- **v4-6**: Added result limits and improved date handling
-- **v7-9**: Enhanced data processing, AI insights, and error handling
-
-## License
-
-This script is provided as-is for educational and practical purposes. Use at your own discretion.
-
-## Acknowledgements
-
-This tool leverages the Google Ads API, Google Apps Script, and Google Sheets to create a powerful yet accessible monitoring system.
+The script is designed to help PPC managers understand the impact of their account changes and make data-driven decisions for future optimizations.
