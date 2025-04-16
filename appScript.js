@@ -44,12 +44,14 @@ function getAccessToken() {
   return accessToken;
 }
 
-// Main Function - UPDATED to check audience changes independently regardless of budget changes
+// Main Function - Consolidated to handle all change types in one sheet
 function runMonitoring() {
   const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
   const budgetSheet = ss.getSheetByName('Budget Monitoring');
-  const audienceSheet = ss.getSheetByName('Audience Monitoring');
   const ignoreSheet = ss.getSheetByName('campaignIgnore');
+  
+  // Add a column for Cut-off Insights if it doesn't exist
+  ensureCutoffInsightsColumn(budgetSheet);
   
   const ignoreData = ignoreSheet.getDataRange().getValues().slice(1); // Skip header
   const ignoreMap = new Map(ignoreData.map(row => [
@@ -57,7 +59,7 @@ function runMonitoring() {
     { tab: row[0], campaignId: row[1], date: new Date(row[3]) }
   ]));
 
-  // Check bid and budget changes - ALWAYS check and process these changes
+  // Check bid and budget changes
   Logger.log("Checking bid and budget changes...");
   const bidBudgetChanges = checkBidBudgetChanges();
   if (bidBudgetChanges.length > 0) {
@@ -67,17 +69,301 @@ function runMonitoring() {
     Logger.log("No bid/budget changes found");
   }
   
-  // ALWAYS check keyword and audience changes regardless of whether budget changes were found
+  // Check keyword and audience changes - now also going to Budget sheet
   Logger.log("Checking keyword and audience changes...");
   const kwAudienceChanges = checkKeywordAudienceChanges();
   if (kwAudienceChanges.length > 0) {
     Logger.log(`Found ${kwAudienceChanges.length} keyword/audience changes`);
-    processChanges(audienceSheet, ignoreSheet, kwAudienceChanges, 'Audience', ignoreMap);
+    processChanges(budgetSheet, ignoreSheet, kwAudienceChanges, 'Audience', ignoreMap);
   } else {
     Logger.log("No keyword/audience changes found");
   }
 
-  checkFourteenDayUpdates(budgetSheet, audienceSheet, ignoreSheet, ignoreMap);
+  // Check for both 14-day updates and cut-off events from other changes
+  checkCutoffAndFourteenDayUpdates(budgetSheet, ignoreSheet, ignoreMap);
+  
+  // Fix empty values in metrics columns
+  fixEmptyMetricsValues(budgetSheet);
+  
+  // Reformat change event summaries
+  reformatChangeSummaries(budgetSheet);
+}
+
+// Function to ensure Cut-off Insights column exists
+function ensureCutoffInsightsColumn(sheet) {
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const aiInsightsIndex = headers.indexOf('AI Insights');
+  
+  // If 'AI Insights' exists, rename it to 'Cut-off Insights'
+  if (aiInsightsIndex !== -1) {
+    sheet.getRange(1, aiInsightsIndex + 1).setValue('Cut-off Insights');
+    Logger.log('Renamed "AI Insights" column to "Cut-off Insights"');
+  } 
+  // If neither exists, add 'Cut-off Insights' column
+  else if (headers.indexOf('Cut-off Insights') === -1) {
+    const lastCol = sheet.getLastColumn();
+    sheet.getRange(1, lastCol + 1).setValue('Cut-off Insights');
+    Logger.log('Added "Cut-off Insights" column');
+  }
+}
+
+// Function to fix empty metrics values
+function fixEmptyMetricsValues(sheet) {
+  const data = sheet.getDataRange().getValues();
+  if (data.length <= 1) return; // Only header row or empty sheet
+  
+  const headers = data[0];
+  const cpcBeforeCol = headers.indexOf('CPC Before') + 1;
+  const ctrBeforeCol = headers.indexOf('CTR Before') + 1;
+  const convBeforeCol = headers.indexOf('Conversion Rate Before') + 1;
+  
+  // Only proceed if we found these columns
+  if (cpcBeforeCol === 0 || ctrBeforeCol === 0 || convBeforeCol === 0) return;
+  
+  let updatesNeeded = false;
+  
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    let rowNeedsUpdate = false;
+    
+    // Check if CPC Before is empty
+    if (row[cpcBeforeCol - 1] === '' || row[cpcBeforeCol - 1] === 0) {
+      sheet.getRange(i + 1, cpcBeforeCol).setValue(0);
+      rowNeedsUpdate = true;
+    }
+    
+    // Check if CTR Before is empty
+    if (row[ctrBeforeCol - 1] === '' || row[ctrBeforeCol - 1] === 0) {
+      sheet.getRange(i + 1, ctrBeforeCol).setValue(0);
+      rowNeedsUpdate = true;
+    }
+    
+    // Check if Conversion Rate Before is empty
+    if (row[convBeforeCol - 1] === '' || row[convBeforeCol - 1] === 0) {
+      sheet.getRange(i + 1, convBeforeCol).setValue(0);
+      rowNeedsUpdate = true;
+    }
+    
+    if (rowNeedsUpdate) updatesNeeded = true;
+  }
+  
+  if (updatesNeeded) {
+    Logger.log(`Fixed empty metrics values in sheet: ${sheet.getName()}`);
+  }
+}
+
+// Function to reformat change event summaries
+function reformatChangeSummaries(sheet) {
+  const data = sheet.getDataRange().getValues();
+  if (data.length <= 1) return; // Only header row or empty sheet
+  
+  const headers = data[0];
+  const changeEventSummaryCol = headers.indexOf('Change Event Summary') + 1;
+  const changeTypeCol = headers.indexOf('Changes Events') + 1;
+  
+  // Only proceed if we found these columns
+  if (changeEventSummaryCol === 0) return;
+  
+  let updatesNeeded = false;
+  
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const summary = row[changeEventSummaryCol - 1];
+    const changeType = row[changeTypeCol - 1];
+    
+    if (summary) {
+      try {
+        // Extract the change level (Campaign or Ad Group)
+        const changeLevel = changeType ? changeType.split(' ')[0].replace(/[\[\]]/g, '') : "Campaign";
+        let newSummary = summary;
+        
+        // Handle budget changes
+        if (summary.includes('campaignBudget') && summary.includes('amountMicros')) {
+          newSummary = createFormattedBudgetSummary(summary, changeLevel);
+          updatesNeeded = true;
+        } 
+        // Handle bidding strategy changes
+        else if (summary.includes('bidding_strategy') || 
+                summary.includes('targetCpa') || 
+                summary.includes('targetRoas') || 
+                summary.includes('manualCpc') ||
+                summary.includes('maximizeConversions')) {
+          
+          // Try to extract old and new values to format as bidding strategy change
+          try {
+            const oldValueStr = summary.substring(summary.indexOf('Old=') + 4, summary.indexOf(', New='));
+            const newValueStr = summary.substring(summary.indexOf('New=') + 5);
+            
+            // Create a properly formatted bidding strategy summary
+            newSummary = formatBiddingStrategyChange(oldValueStr, newValueStr, changeLevel, row[0]);
+            updatesNeeded = true;
+          } catch (err) {
+            Logger.log(`Error formatting bidding strategy change in row ${i + 1}: ${err.message}`);
+          }
+        }
+        
+        // Update the summary cell if it changed
+        if (newSummary !== summary) {
+          sheet.getRange(i + 1, changeEventSummaryCol).setValue(newSummary);
+        }
+      } catch (e) {
+        Logger.log(`Error reformatting summary in row ${i + 1}: ${e.message}`);
+      }
+    }
+  }
+  
+  if (updatesNeeded) {
+    Logger.log(`Reformatted change event summaries in sheet: ${sheet.getName()}`);
+  }
+}
+
+// Helper function to create a formatted budget summary
+function createFormattedBudgetSummary(originalSummary, changeLevel) {
+  try {
+    // Extract old and new values using regex
+    const oldValueMatch = originalSummary.match(/Old=.*?"amountMicros":"(\d+)"/);
+    const newValueMatch = originalSummary.match(/New=.*?"amountMicros":"(\d+)"/);
+    
+    if (!oldValueMatch || !newValueMatch) {
+      return originalSummary; // Unable to extract values, keep original
+    }
+    
+    // Convert amountMicros to dollars
+    const oldAmountMicros = parseInt(oldValueMatch[1], 10);
+    const newAmountMicros = parseInt(newValueMatch[1], 10);
+    
+    const oldDollars = oldAmountMicros / 1000000;
+    const newDollars = newAmountMicros / 1000000;
+    
+    // Determine if it's an increase or decrease
+    const action = newDollars > oldDollars ? "Increased" : "Decreased";
+    
+    // Format with dollar sign and 2 decimal places
+    const oldFormatted = `$${oldDollars.toFixed(2)}`;
+    const newFormatted = `$${newDollars.toFixed(2)}`;
+    
+    // Create the formatted summary
+    return `${action} ${changeLevel} daily budget from ${oldFormatted} to ${newFormatted}`;
+  } catch (e) {
+    Logger.log(`Error in createFormattedBudgetSummary: ${e.message}`);
+    return originalSummary; // Return original on error
+  }
+}
+
+// Helper function to format bidding strategy changes
+function formatBiddingStrategyChange(oldValueStr, newValueStr, changeLevel, campaignName) {
+  try {
+    const oldValue = typeof oldValueStr === 'string' ? JSON.parse(oldValueStr) : oldValueStr;
+    const newValue = typeof newValueStr === 'string' ? JSON.parse(newValueStr) : newValueStr;
+    
+    // Extract campaign objects
+    const oldCampaign = oldValue.campaign || {};
+    const newCampaign = newValue.campaign || {};
+    
+    // Determine old and new bidding strategy types
+    let oldStrategyType = extractBiddingStrategyType(oldCampaign);
+    let newStrategyType = extractBiddingStrategyType(newCampaign);
+    
+    // Extract bid values if applicable
+    let oldBidValue = extractBidValue(oldCampaign, oldStrategyType);
+    let newBidValue = extractBidValue(newCampaign, newStrategyType);
+    
+    // Create a human-readable description
+    let summary = `Changed bidding strategy at ${changeLevel} level`;
+    if (campaignName) {
+      summary += ` for "${campaignName}"`;
+    }
+    
+    if (oldStrategyType !== newStrategyType) {
+      summary += ` from ${formatStrategyName(oldStrategyType)} to ${formatStrategyName(newStrategyType)}`;
+    }
+    
+    // Add bid value changes if we have them
+    if (oldBidValue !== null && newBidValue !== null && typeof oldBidValue === 'number' && typeof newBidValue === 'number') {
+      if (oldStrategyType === newStrategyType) {
+        const action = newBidValue > oldBidValue ? 'Increased' : 'Decreased';
+        summary = `${action} ${formatStrategyName(newStrategyType)} bid`;
+        summary += ` at ${changeLevel} level`;
+        if (campaignName) {
+          summary += ` for "${campaignName}"`;
+        }
+      }
+      
+      // Format the values based on strategy type
+      if (oldStrategyType === 'TARGET_ROAS' || newStrategyType === 'TARGET_ROAS') {
+        summary += ` from ${(oldBidValue * 100).toFixed(2)}% to ${(newBidValue * 100).toFixed(2)}%`;
+      } else {
+        summary += ` from $${oldBidValue.toFixed(2)} to $${newBidValue.toFixed(2)}`;
+      }
+    }
+    
+    return summary;
+  } catch (e) {
+    Logger.log(`Error formatting bidding strategy change: ${e.message}`);
+    return `Bidding strategy change (Error formatting details)`;
+  }
+}
+
+// Helper function to extract bidding strategy type from campaign object
+function extractBiddingStrategyType(campaignObj) {
+  if (!campaignObj) return 'UNKNOWN';
+  
+  if (campaignObj.biddingStrategyType) return campaignObj.biddingStrategyType;
+  if (campaignObj.manualCpc) return 'MANUAL_CPC';
+  if (campaignObj.manualCpm) return 'MANUAL_CPM';
+  if (campaignObj.targetCpa) return 'TARGET_CPA';
+  if (campaignObj.targetRoas) return 'TARGET_ROAS';
+  if (campaignObj.maximizeConversions) return 'MAXIMIZE_CONVERSIONS';
+  if (campaignObj.maximizeConversionValue) return 'MAXIMIZE_CONVERSION_VALUE';
+  
+  return 'UNKNOWN';
+}
+
+// Helper function to extract bid value from campaign based on strategy type
+function extractBidValue(campaignObj, strategyType) {
+  if (!campaignObj) return null;
+  
+  switch(strategyType) {
+    case 'MANUAL_CPC':
+      // For manual CPC, return enhanced status as string or null
+      if (campaignObj.manualCpc && campaignObj.manualCpc.enhancedCpcEnabled !== undefined) {
+        return campaignObj.manualCpc.enhancedCpcEnabled ? 'Enhanced CPC' : 'Manual CPC';
+      }
+      return null;
+    case 'TARGET_CPA':
+      return campaignObj.targetCpa && campaignObj.targetCpa.targetCpaMicros
+        ? parseFloat(campaignObj.targetCpa.targetCpaMicros) / 1000000
+        : null;
+    case 'TARGET_ROAS':
+      return campaignObj.targetRoas && campaignObj.targetRoas.targetRoas
+        ? parseFloat(campaignObj.targetRoas.targetRoas)
+        : null;
+    case 'MAXIMIZE_CONVERSIONS':
+      return campaignObj.maximizeConversions && campaignObj.maximizeConversions.targetCpaMicros
+        ? parseFloat(campaignObj.maximizeConversions.targetCpaMicros) / 1000000
+        : null;
+    case 'MAXIMIZE_CONVERSION_VALUE':
+      return campaignObj.maximizeConversionValue && campaignObj.maximizeConversionValue.targetRoas
+        ? parseFloat(campaignObj.maximizeConversionValue.targetRoas)
+        : null;
+    default:
+      return null;
+  }
+}
+
+// Helper function to format bidding strategy type to human-readable name
+function formatStrategyName(strategyType) {
+  switch(strategyType) {
+    case 'MANUAL_CPC': return 'Manual CPC';
+    case 'ENHANCED_CPC': return 'Enhanced CPC';
+    case 'TARGET_CPA': return 'Target CPA';
+    case 'TARGET_ROAS': return 'Target ROAS';
+    case 'MAXIMIZE_CONVERSIONS': return 'Maximize Conversions';
+    case 'MAXIMIZE_CONVERSION_VALUE': return 'Maximize Conversion Value';
+    case 'UNKNOWN': return 'Unknown';
+    default: return strategyType.replace(/_/g, ' ').toLowerCase()
+      .replace(/\b\w/g, l => l.toUpperCase()); // Title case
+  }
 }
 
 // API Call Function
@@ -119,7 +405,7 @@ function callGoogleAdsApi(query) {
   }
 }
 
-// Scenario 1: Detect Bid/Budget Changes - ENHANCED to include more bid strategy changes
+// Function to check bid and budget changes
 function checkBidBudgetChanges() {
   const now = new Date();
   const past = new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -149,8 +435,7 @@ function checkBidBudgetChanges() {
         'AD_GROUP_BID_MODIFIER', 
         'AD_GROUP_CRITERION', 
         'CAMPAIGN', 
-        'CAMPAIGN_CRITERION',
-        'BIDDING_STRATEGY'
+        'CAMPAIGN_CRITERION'
       )
     LIMIT 10000
   `;
@@ -161,11 +446,12 @@ function checkBidBudgetChanges() {
     'AD_GROUP_BID_MODIFIER', 
     'AD_GROUP_CRITERION', 
     'CAMPAIGN',
-    'CAMPAIGN_CRITERION',
-    'BIDDING_STRATEGY'
+    'CAMPAIGN_CRITERION'
   ], [
+    'bidding_strategy_type', 
     'bidding_strategy', 
     'maximize_conversion_value', 
+    'maximize_conversions',
     'budget',
     'target_cpa',
     'target_roas',
@@ -173,11 +459,14 @@ function checkBidBudgetChanges() {
     'cpv_bid',
     'cpm_bid',
     'target_spend',
-    'bid_modifier'
+    'bid_modifier',
+    'manual_cpc',
+    'manual_cpm',
+    'enhanced_cpc'
   ]);
 }
 
-// Scenario 2: Detect Keyword & Audience Changes - UPDATED to properly include geo targeting
+// Function to check keyword and audience changes
 function checkKeywordAudienceChanges() {
   const now = new Date();
   const past = new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -187,7 +476,6 @@ function checkKeywordAudienceChanges() {
   Logger.log('Audience check - startDatetime: ' + startDatetime);
   Logger.log('Audience check - endDatetime: ' + endDatetime);
   
-  // Updated query to capture all audience and keyword related changes
   const query = `
     SELECT 
       change_event.change_date_time,
@@ -205,26 +493,16 @@ function checkKeywordAudienceChanges() {
     AND change_event.change_resource_type IN (
       'AD_GROUP_CRITERION', 
       'CAMPAIGN_CRITERION', 
-      'CAMPAIGN',
-      'AD_GROUP_AUDIENCE_VIEW',
-      'CUSTOMER_NEGATIVE_CRITERION',
-      'KEYWORD_PLAN',
-      'KEYWORD_PLAN_CAMPAIGN_KEYWORD',
-      'KEYWORD_PLAN_AD_GROUP_KEYWORD'
+      'CAMPAIGN'
     )
     LIMIT 10000
   `;
   
-  // Expanded list of relevant fields to filter for audiences and keywords
+  // List of relevant fields for audiences and keywords
   return processChangeEvents(query, [
     'AD_GROUP_CRITERION', 
     'CAMPAIGN_CRITERION', 
-    'CAMPAIGN',
-    'AD_GROUP_AUDIENCE_VIEW',
-    'CUSTOMER_NEGATIVE_CRITERION',
-    'KEYWORD_PLAN',
-    'KEYWORD_PLAN_CAMPAIGN_KEYWORD',
-    'KEYWORD_PLAN_AD_GROUP_KEYWORD'
+    'CAMPAIGN'
   ], [
     'location',
     'criterion', 
@@ -241,7 +519,7 @@ function checkKeywordAudienceChanges() {
   ]);
 }
 
-// Enhanced Process Change Events with better filtering and entity level identification
+// Function to process change events 
 function processChangeEvents(query, resourceTypes, relevantFields = null) {
   const changes = [];
   try {
@@ -268,7 +546,7 @@ function processChangeEvents(query, resourceTypes, relevantFields = null) {
                 const campaignId = row.changeEvent.campaign ? row.changeEvent.campaign.split('/')[3] : null;
                 const adGroupId = row.changeEvent.adGroup ? row.changeEvent.adGroup.split('/')[3] : null;
                 
-                // Determine the level at which the change occurred (Campaign, Ad Group, Keyword)
+                // Determine the level at which the change occurred
                 let changeLevel = "Campaign";
                 if (adGroupId) {
                   changeLevel = "Ad Group";
@@ -303,7 +581,6 @@ function processChangeEvents(query, resourceTypes, relevantFields = null) {
                   changedFields: row.changeEvent.changedFields || ''
                 });
                 
-                // Log the detected change for debugging
                 Logger.log(`Detected ${changeLevel} level change in ${row.campaign ? row.campaign.name : 'Unknown Campaign'} - Type: ${row.changeEvent.changeResourceType} - Changed Fields: ${row.changeEvent.changedFields || 'N/A'}`);
               }
             }
@@ -321,116 +598,7 @@ function processChangeEvents(query, resourceTypes, relevantFields = null) {
   return changes;
 }
 
-// Helper function to create a human-readable summary of the change
-function createHumanReadableSummary(change) {
-  try {
-    let summary = `${change.changeLevel} ${change.operation}: `;
-    
-    // Format based on change type
-    if (change.type.includes('BUDGET')) {
-      const oldBudget = change.oldValue ? JSON.parse(change.oldValue) : null;
-      const newBudget = change.newValue ? JSON.parse(change.newValue) : null;
-      
-      if (oldBudget && newBudget && oldBudget.amountMicros && newBudget.amountMicros) {
-        const oldAmount = parseInt(oldBudget.amountMicros) / 1000000;
-        const newAmount = parseInt(newBudget.amountMicros) / 1000000;
-        summary += `Budget changed from $${oldAmount.toFixed(2)} to $${newAmount.toFixed(2)}`;
-      } else if (newBudget && newBudget.amountMicros && change.operation === 'CREATE') {
-        const newAmount = parseInt(newBudget.amountMicros) / 1000000;
-        summary += `New budget set to $${newAmount.toFixed(2)}`;
-      } else {
-        summary += `Budget change detected`;
-      }
-    } else if (change.changedFields.includes('bidding_strategy') || 
-               change.type.includes('BIDDING_STRATEGY')) {
-      summary += `Bidding strategy modified`;
-      
-      // Try to extract specific bidding strategy details if available
-      if (change.oldValue && change.newValue) {
-        try {
-          const oldObj = JSON.parse(change.oldValue);
-          const newObj = JSON.parse(change.newValue);
-          
-          // Check for target CPA changes
-          if (oldObj.targetCpa && newObj.targetCpa) {
-            const oldCpa = parseInt(oldObj.targetCpa.targetCpaMicros) / 1000000;
-            const newCpa = parseInt(newObj.targetCpa.targetCpaMicros) / 1000000;
-            summary += ` - Target CPA changed from $${oldCpa.toFixed(2)} to $${newCpa.toFixed(2)}`;
-          }
-          
-          // Check for target ROAS changes
-          if (oldObj.targetRoas && newObj.targetRoas) {
-            const oldRoas = parseFloat(oldObj.targetRoas.targetRoas);
-            const newRoas = parseFloat(newObj.targetRoas.targetRoas);
-            summary += ` - Target ROAS changed from ${(oldRoas * 100).toFixed(2)}% to ${(newRoas * 100).toFixed(2)}%`;
-          }
-        } catch (e) {
-          // If parsing fails, just use generic message
-          Logger.log(`Error parsing bidding strategy details: ${e.message}`);
-        }
-      }
-    } else if (change.type.includes('KEYWORD') || change.changedFields.includes('keyword')) {
-      if (change.operation === 'CREATE') {
-        summary += `Keyword added`;
-      } else if (change.operation === 'REMOVE') {
-        summary += `Keyword removed`;
-      } else {
-        summary += `Keyword modified`;
-      }
-      
-      // Try to extract keyword text if available
-      if (change.newValue) {
-        try {
-          const newObj = JSON.parse(change.newValue);
-          if (newObj.keyword && newObj.keyword.text) {
-            summary += `: "${newObj.keyword.text}"`;
-            
-            // Add match type if available
-            if (newObj.keyword.matchType) {
-              summary += ` (${newObj.keyword.matchType})`;
-            }
-          }
-        } catch (e) {
-          Logger.log(`Error parsing keyword details: ${e.message}`);
-        }
-      }
-    } else if (change.changedFields.includes('audience') || 
-               change.changedFields.includes('user_list') ||
-               change.type.includes('AUDIENCE')) {
-      if (change.operation === 'CREATE') {
-        summary += `Audience added`;
-      } else if (change.operation === 'REMOVE') {
-        summary += `Audience removed`;
-      } else {
-        summary += `Audience targeting modified`;
-      }
-    } else if (change.changedFields.includes('location') || 
-               change.changedFields.includes('geo_target')) {
-      if (change.operation === 'CREATE') {
-        summary += `Location targeting added`;
-      } else if (change.operation === 'REMOVE') {
-        summary += `Location targeting removed`;
-      } else {
-        summary += `Location targeting modified`;
-      }
-    } else {
-      // Generic fallback
-      summary += `${change.changedFields || change.type}`;
-    }
-    
-    // Add campaign/ad group context
-    if (change.adGroupName) {
-      summary += ` in ad group "${change.adGroupName}"`;
-    }
-    
-    return summary;
-  } catch (e) {
-    Logger.log(`Error creating human-readable summary: ${e.message}`);
-    return `${change.changeLevel} ${change.operation} - ${change.type}`;
-  }
-}
-
-// Fetch Performance Data - Enhanced with better error handling and logging
+// Function to get performance data
 function getPerformanceData(campaignId, adGroupId, startDate, endDate) {
   try {
     Logger.log(`Fetching performance data for campaign ${campaignId} from ${startDate} to ${endDate}`);
@@ -449,9 +617,6 @@ function getPerformanceData(campaignId, adGroupId, startDate, endDate) {
       FROM campaign
       WHERE campaign.id = '${campaignId}'
       AND segments.date BETWEEN '${startDate}' AND '${endDate}'`;
-    
-    // Log the query for debugging
-    Logger.log(`Performance query: ${query}`);
     
     const report = callGoogleAdsApi(query);
     
@@ -474,8 +639,6 @@ function getPerformanceData(campaignId, adGroupId, startDate, endDate) {
                     (metrics.conversions / metrics.clicks * 100) : 0;
     const impressions = metrics.impressions || 0;
     
-    Logger.log(`Performance metrics retrieved - CPC: ${cpc}, CTR: ${ctr}%, Conv Rate: ${convRate}%, Impressions: ${impressions}`);
-    
     // Only calculate auction insights if we have impression share data
     let auctionInsights = 'N/A';
     if (metrics.searchImpressionShare) {
@@ -493,7 +656,6 @@ function getPerformanceData(campaignId, adGroupId, startDate, endDate) {
     };
   } catch (e) {
     Logger.log(`Error in getPerformanceData: ${e.message}`);
-    // Return default values on error
     return {
       cpc: 0,
       ctr: 0,
@@ -504,8 +666,8 @@ function getPerformanceData(campaignId, adGroupId, startDate, endDate) {
   }
 }
 
-// Enhanced Process and Append Changes - Now includes entity level information
-function processChanges(targetSheet, ignoreSheet, changes, tab, ignoreMap) {
+// Function to process and append changes
+function processChanges(targetSheet, ignoreSheet, changes, changeType, ignoreMap) {
   try {
     const targetData = targetSheet.getDataRange().getValues().slice(1);
     const targetMap = new Map(targetData.map((row, idx) => [row[9], idx + 2]));
@@ -529,8 +691,6 @@ function processChanges(targetSheet, ignoreSheet, changes, tab, ignoreMap) {
           beforeStartDate.setDate(beforeStartDate.getDate() - CONFIG.DAYS_BEFORE);
           const beforeStartDateStr = beforeStartDate.toISOString().split('T')[0];
           
-          Logger.log(`Fetching performance data from ${beforeStartDateStr} to ${beforeEndDate}`);
-          
           // Get performance data at campaign level
           const beforePerf = getPerformanceData(
             change.campaignId, 
@@ -539,36 +699,41 @@ function processChanges(targetSheet, ignoreSheet, changes, tab, ignoreMap) {
             beforeEndDate
           );
           
-          // Create more descriptive change type for display
-          const displayChangeType = `${change.changeLevel} ${change.type}`;
+          // Create more descriptive change type for display with category prefix
+          const displayChangeType = `[${changeType.toUpperCase()}] ${change.changeLevel} ${change.type}`;
 
-          // Append to ignore sheet
-          ignoreSheet.appendRow([tab, change.campaignId, changeEventId, formattedDate]);
+          // Make sure metrics have default values if they're zero or empty
+          const cpcBefore = beforePerf.cpc || 0;
+          const ctrBefore = beforePerf.ctr || 0;
+          const convBefore = beforePerf.conversionRate || 0;
+          
+          // Append to ignore sheet - include change type for better tracking
+          ignoreSheet.appendRow([changeType, change.campaignId, changeEventId, formattedDate]);
           
           // Append to target sheet with all data
           targetSheet.appendRow([
             change.campaignName,
             change.campaignId,
-            beforePerf.cpc,
+            cpcBefore,
             '',  // CPC After (to be filled later)
-            beforePerf.ctr,
+            ctrBefore,
             '',  // CTR After (to be filled later)
-            beforePerf.conversionRate,
+            convBefore,
             '',  // Conv Rate After (to be filled later)
             displayChangeType,
             changeEventId,
             formattedDate,
-            summary,  // Use the human-readable summary here
+            summary,
             beforePerf.auctionInsights
           ]);
           
           ignoreMap.set(changeEventId, { 
-            tab, 
+            tab: changeType, 
             campaignId: change.campaignId, 
             date: changeEventDate 
           });
           
-          Logger.log(`Successfully appended new ${tab} change for campaign: ${change.campaignName}, ID: ${changeEventId}, Summary: ${summary}`);
+          Logger.log(`Successfully appended new ${changeType} change for campaign: ${change.campaignName}`);
         } else {
           Logger.log(`Change already exists in ignore map: ${changeEventId}`);
         }
@@ -581,140 +746,187 @@ function processChanges(targetSheet, ignoreSheet, changes, tab, ignoreMap) {
   }
 }
 
-// Check 14-Day Updates with improved date handling
-function checkFourteenDayUpdates(budgetSheet, audienceSheet, ignoreSheet, ignoreMap) {
-  const budgetData = budgetSheet.getDataRange().getValues().slice(1);
-  const budgetMap = new Map(budgetData.map((row, idx) => [row[9], idx + 2]));
-  const audienceData = audienceSheet.getDataRange().getValues().slice(1);
-  const audienceMap = new Map(audienceData.map((row, idx) => [row[9], idx + 2]));
-
-  ignoreMap.forEach((entry, changeEventId) => {
-    try {
-      const daysSince = (new Date() - entry.date) / (1000 * 60 * 60 * 24);
-      Logger.log(`Checking ${changeEventId}: ${daysSince.toFixed(1)} days since change`);
+// Enhanced check for both 14-day updates and cut-off events
+function checkCutoffAndFourteenDayUpdates(budgetSheet, ignoreSheet, ignoreMap) {
+  // Get the data from the Budget Sheet
+  const budgetData = budgetSheet.getDataRange().getValues();
+  if (budgetData.length <= 1) return; // Only header row
+  
+  const headers = budgetData[0];
+  const campaignIdCol = headers.indexOf('Campaign ID') + 1;
+  const changeEventIdCol = headers.indexOf('Change Events ID') + 1;
+  const cpcBeforeCol = headers.indexOf('CPC Before') + 1;
+  const cpcAfterCol = headers.indexOf('CPC After') + 1;
+  const ctrBeforeCol = headers.indexOf('CTR Before') + 1;
+  const ctrAfterCol = headers.indexOf('CTR After') + 1;
+  const convBeforeCol = headers.indexOf('Conversion Rate Before') + 1;
+  const convAfterCol = headers.indexOf('Conversion Rate After') + 1;
+  const cutoffInsightsCol = headers.indexOf('Cut-off Insights') + 1;
+  
+  // Build a mapping of campaigns to their change events
+  const campaignChangeEvents = new Map();
+  
+  // First pass - collect all campaigns and their change events with dates
+  for (let i = 1; i < budgetData.length; i++) {
+    const row = budgetData[i];
+    const campaignId = row[campaignIdCol - 1];
+    const changeEventId = row[changeEventIdCol - 1];
+    
+    if (!campaignId || !changeEventId) continue;
+    
+    // Get the entry from the ignoreMap to get the actual date
+    const entry = ignoreMap.get(changeEventId);
+    if (!entry) continue;
+    
+    const changeDate = entry.date;
+    
+    // Add to the campaign change events map
+    if (!campaignChangeEvents.has(campaignId)) {
+      campaignChangeEvents.set(campaignId, []);
+    }
+    
+    campaignChangeEvents.get(campaignId).push({
+      changeEventId,
+      date: changeDate,
+      rowIndex: i + 1, // +1 because we're 0-indexed but sheets are 1-indexed
+      hasCutoffInsights: !!row[cutoffInsightsCol - 1] // Check if it already has insights
+    });
+  }
+  
+  // Process each campaign's change events
+  const now = new Date();
+  campaignChangeEvents.forEach((events, campaignId) => {
+    // Sort events by date (oldest first)
+    events.sort((a, b) => a.date - b.date);
+    
+    // Check each event
+    for (let i = 0; i < events.length; i++) {
+      const currentEvent = events[i];
       
-      if (daysSince >= 14) {
-        const targetSheet = entry.tab === 'Budget' ? budgetSheet : audienceSheet;
-        const targetMap = entry.tab === 'Budget' ? budgetMap : audienceMap;
+      // Skip if already has insights
+      if (currentEvent.hasCutoffInsights) continue;
+      
+      // Look for the next event for this campaign
+      const nextEvent = i < events.length - 1 ? events[i + 1] : null;
+      
+      // Check if this event is eligible for cutoff or 14-day insights
+      const daysSince = (now - currentEvent.date) / (1000 * 60 * 60 * 24);
+      const cutoffDate = nextEvent ? nextEvent.date : new Date(currentEvent.date.getTime() + 14 * 24 * 60 * 60 * 1000);
+      const daysBetweenEvents = nextEvent ? (nextEvent.date - currentEvent.date) / (1000 * 60 * 60 * 1000 * 24) : 14;
+      
+      // Only process if either:
+      // 1. 14 days have passed without another change or 
+      // 2. There is a next event and it's been at least 1 day since the current event
+      if ((daysSince >= 14 && !nextEvent) || (nextEvent && daysBetweenEvents >= 1)) {
+        Logger.log(`Processing insights for campaign ${campaignId}, event at row ${currentEvent.rowIndex}`);
         
-        if (targetMap.has(changeEventId)) {
-          const rowNum = targetMap.get(changeEventId);
-          Logger.log(`Updating 14-day metrics for ${entry.tab} change in row ${rowNum}`);
-          
-          const changeDate = entry.date;
-          const afterStartDate = new Date(changeDate);
-          const afterEndDate = new Date(changeDate);
-          afterEndDate.setDate(afterEndDate.getDate() + CONFIG.DAYS_BEFORE);
-          
-          // Fix: Create a new Date object to compare dates properly
-          const currentDate = new Date();
-          // Use Math.min with getTime() to compare date values correctly
-          const endDateToUse = new Date(Math.min(afterEndDate.getTime(), currentDate.getTime()));
-          
-          const afterStartDateStr = afterStartDate.toISOString().split('T')[0];
-          const endDateToUseStr = endDateToUse.toISOString().split('T')[0];
-          
-          Logger.log(`Fetching after-change performance: ${afterStartDateStr} to ${endDateToUseStr}`);
-          
-          const afterPerf = getPerformanceData(
-            entry.campaignId, 
-            null,
-            afterStartDateStr,
-            endDateToUseStr
-          );
-          
-          // Log what we're updating
-          Logger.log(`After metrics - CPC: ${afterPerf.cpc}, CTR: ${afterPerf.ctr}, Conv Rate: ${afterPerf.conversionRate}`);
-          
-          // Update the sheet with the after performance data
-          targetSheet.getRange(rowNum, 4).setValue(afterPerf.cpc);
-          targetSheet.getRange(rowNum, 6).setValue(afterPerf.ctr);
-          targetSheet.getRange(rowNum, 8).setValue(afterPerf.conversionRate);
-          
-          Logger.log(`Successfully updated 14-day metrics for ${entry.tab} change: ${changeEventId}`);
+        // Calculate date ranges for performance data after the change
+        const afterStartDate = new Date(currentEvent.date);
+        const afterEndDate = new Date(Math.min(cutoffDate, now));
+        
+        const afterStartDateStr = afterStartDate.toISOString().split('T')[0];
+        const afterEndDateStr = afterEndDate.toISOString().split('T')[0];
+        
+        // Get performance data
+        const afterPerf = getPerformanceData(
+          campaignId, 
+          null,
+          afterStartDateStr,
+          afterEndDateStr
+        );
+        
+        // Make sure to set 0 instead of empty values
+        const cpcAfter = afterPerf.cpc || 0;
+        const ctrAfter = afterPerf.ctr || 0;
+        const convAfter = afterPerf.conversionRate || 0;
+        
+        // Get the current row data
+        const rowData = budgetData[currentEvent.rowIndex - 1];
+        const campaignName = rowData[0]; // Assuming Campaign Name is in column A
+        
+        // Get the before metrics
+        const cpcBefore = rowData[cpcBeforeCol - 1] || 0;
+        const ctrBefore = rowData[ctrBeforeCol - 1] || 0;
+        const convBefore = rowData[convBeforeCol - 1] || 0;
+        
+        // Update the after metrics in the spreadsheet
+        budgetSheet.getRange(currentEvent.rowIndex, cpcAfterCol).setValue(cpcAfter);
+        budgetSheet.getRange(currentEvent.rowIndex, ctrAfterCol).setValue(ctrAfter);
+        budgetSheet.getRange(currentEvent.rowIndex, convAfterCol).setValue(convAfter);
+        
+        // Calculate percentage changes for metrics
+        const cpcChange = calculatePercentChange(cpcBefore, cpcAfter);
+        const ctrChange = calculatePercentChange(ctrBefore, ctrAfter);
+        const convChange = calculatePercentChange(convBefore, convAfter);
+        
+        // Generate the cut-off insights text
+        let cutoffInsightsText = '';
+        
+        if (nextEvent) {
+          // If cut off by another change event
+          cutoffInsightsText = `During ${daysBetweenEvents.toFixed(1)} days, "${campaignName}" has seen ${formatMetricChanges(cpcChange, ctrChange, convChange)}. Cut-off by newer change event.`;
         } else {
-          Logger.log(`Change ID ${changeEventId} not found in ${entry.tab} sheet map`);
+          // If completed the 14-day cycle
+          cutoffInsightsText = `During 14 days, "${campaignName}" has seen ${formatMetricChanges(cpcChange, ctrChange, convChange)}.`;
         }
+        
+        // Update the cut-off insights column
+        budgetSheet.getRange(currentEvent.rowIndex, cutoffInsightsCol).setValue(cutoffInsightsText);
+        
+        Logger.log(`Updated cut-off insights at row ${currentEvent.rowIndex}`);
       }
-    } catch (e) {
-      Logger.log(`Error in checkFourteenDayUpdates for ${changeEventId}: ${e.message}`);
     }
   });
 }
 
-// Function to add AI Insights to rows with complete before/after metrics
-function addAIInsights() {
-  try {
-    const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-    const budgetSheet = ss.getSheetByName('Budget Monitoring');
-    
-    // Get all data from the sheet
-    const data = budgetSheet.getDataRange().getValues();
-    const headers = data[0];
-    
-    // Find the column indices for the metrics and AI Insights
-    const cpcBeforeCol = headers.indexOf('CPC Before') + 1;
-    const cpcAfterCol = headers.indexOf('CPC After') + 1;
-    const ctrBeforeCol = headers.indexOf('CTR Before') + 1;
-    const ctrAfterCol = headers.indexOf('CTR After') + 1;
-    const convBeforeCol = headers.indexOf('Conversion Rate Before') + 1;
-    const convAfterCol = headers.indexOf('Conversion Rate After') + 1;
-    const aiInsightsCol = headers.indexOf('AI Insights') + 1;
-    
-    // If AI Insights column doesn't exist, add it
-    if (aiInsightsCol === 0) {
-      budgetSheet.getRange(1, headers.length + 1).setValue('AI Insights');
-      Logger.log('Added AI Insights column to Budget Monitoring sheet');
-    }
-    
-    // Counter for rows updated
-    let updatedRows = 0;
-    
-    // Iterate through rows starting from row 2 (skipping header)
-    for (let i = 1; i < data.length; i++) {
-      const row = data[i];
-      
-      // Check if all "After" columns have values
-      if (row[cpcAfterCol - 1] !== '' && 
-          row[ctrAfterCol - 1] !== '' && 
-          row[convAfterCol - 1] !== '') {
-        
-        // Create a range reference for the entire row from column A to column M
-        const rowRange = `A${i+1}:M${i+1}`;
-        
-        // Apply the GPT formula to the AI Insights cell
-        const formula = `=GPT("Analyze the data in this row 'Budget Monitoring' which rows that have both CPC, CTR and Conversion Rate Before and After. Give insights into how budget change (convert amountMicros to actual $ value in your text output by dividing it by 1000000) impact the progression of these metrics after a certain amount of time (14 days). Write insights on this cell. Make sure your insight is concise, yet informative and action-oriented",${rowRange},0,standard,false)`;
-        
-        // Only update the formula if the cell is empty or doesn't start with "=GPT"
-        const currentInsight = budgetSheet.getRange(i+1, aiInsightsCol || headers.length + 1).getFormula();
-        if (!currentInsight || !currentInsight.startsWith('=GPT')) {
-          budgetSheet.getRange(i+1, aiInsightsCol || headers.length + 1).setFormula(formula);
-          Logger.log(`Applied AI Insights formula to row ${i+1}`);
-          updatedRows++;
-        }
-      }
-    }
-    
-    // Display a summary of what was done
-    if (updatedRows > 0) {
-      SpreadsheetApp.getActiveSpreadsheet().toast(`Updated AI Insights for ${updatedRows} rows in the Budget Monitoring sheet.`, '✅ AI Insights Update', 10);
-    } else {
-      SpreadsheetApp.getActiveSpreadsheet().toast('No rows with complete before/after metrics found to update.', '🔍 AI Insights Update', 5);
-    }
-    
-    Logger.log(`AI Insights update complete. Updated ${updatedRows} rows.`);
-    
-  } catch (e) {
-    Logger.log(`Error in addAIInsights: ${e.message}`);
-    SpreadsheetApp.getActiveSpreadsheet().toast(`Error: ${e.message}`, '❌ AI Insights Error', 10);
+// Helper function to calculate percentage change
+function calculatePercentChange(before, after) {
+  if (before === 0) return after > 0 ? 100 : 0;
+  return ((after - before) / before) * 100;
+}
+
+// Helper function to format metric changes
+function formatMetricChanges(cpcChange, ctrChange, convChange) {
+  const parts = [];
+  
+  if (cpcChange !== 0) {
+    parts.push(`${cpcChange > 0 ? 'an increase' : 'a decrease'} of ${Math.abs(cpcChange).toFixed(2)}% in CPC`);
+  }
+  
+  if (ctrChange !== 0) {
+    parts.push(`${ctrChange > 0 ? 'an increase' : 'a decrease'} of ${Math.abs(ctrChange).toFixed(2)}% in CTR`);
+  }
+  
+  if (convChange !== 0) {
+    parts.push(`${convChange > 0 ? 'an increase' : 'a decrease'} of ${Math.abs(convChange).toFixed(2)}% in Conversion Rate`);
+  }
+  
+  if (parts.length === 0) {
+    return "no significant changes in metrics";
+  } else if (parts.length === 1) {
+    return parts[0];
+  } else if (parts.length === 2) {
+    return `${parts[0]} and ${parts[1]}`;
+  } else {
+    return `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`;
   }
 }
 
-// Utility Functions
-function getDateDaysAgo(date, days) {
-  const result = new Date(date);
-  result.setDate(result.getDate() - days);
-  return result.toISOString().split('T')[0];
+// Function to manually update cut-off insights
+function updateCutoffInsights() {
+  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  const budgetSheet = ss.getSheetByName('Budget Monitoring');
+  const ignoreSheet = ss.getSheetByName('campaignIgnore');
+  
+  const ignoreData = ignoreSheet.getDataRange().getValues().slice(1); // Skip header
+  const ignoreMap = new Map(ignoreData.map(row => [
+    row[2], // Change Events ID
+    { tab: row[0], campaignId: row[1], date: new Date(row[3]) }
+  ]));
+  
+  checkCutoffAndFourteenDayUpdates(budgetSheet, ignoreSheet, ignoreMap);
+  
+  SpreadsheetApp.getActiveSpreadsheet().toast('Cut-off insights updated successfully.', '✅ Update Complete', 10);
 }
 
 // Custom Menu for Manual Runs
@@ -723,6 +935,7 @@ function onOpen() {
     .createMenu('🎛️ Console 🎛️')
     .addItem('🔐 Unlock Token', 'refreshAccessToken')
     .addItem('🔓 Fetch 24hrs', 'runMonitoring')
-    .addItem('🧠 Update AI Insights', 'addAIInsights')
+    .addItem('📊 Update Cut-off Insights', 'updateCutoffInsights')
+    .addItem('🧪 Test 90-Day Changes', 'testPast90DaysChanges')
     .addToUi();
 }
