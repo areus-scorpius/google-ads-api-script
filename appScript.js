@@ -929,6 +929,59 @@ function updateCutoffInsights() {
   SpreadsheetApp.getActiveSpreadsheet().toast('Cut-off insights updated successfully.', '✅ Update Complete', 10);
 }
 
+// Function to create human-readable summary of changes
+function createHumanReadableSummary(change) {
+  try {
+    // Default summary based on change type
+    let summary = `${change.operation} in ${change.changeLevel} "${change.campaignName}"`;
+    
+    // Try to parse old and new values if they exist
+    if (change.oldValue && change.newValue) {
+      try {
+        // Special handling for budget changes
+        if (change.changedFields.includes('campaignBudget') && change.changedFields.includes('amountMicros')) {
+          return createFormattedBudgetSummary(
+            `Old=${change.oldValue}, New=${change.newValue}`, 
+            change.changeLevel
+          );
+        }
+        
+        // Special handling for bidding strategy changes
+        if (change.changedFields.includes('bidding_strategy') || 
+            change.changedFields.includes('targetCpa') || 
+            change.changedFields.includes('targetRoas') || 
+            change.changedFields.includes('manualCpc') ||
+            change.changedFields.includes('maximizeConversions')) {
+          
+          return formatBiddingStrategyChange(
+            change.oldValue, 
+            change.newValue, 
+            change.changeLevel,
+            change.campaignName
+          );
+        }
+        
+        // Special handling for keyword changes
+        if (change.changeLevel === "Keyword") {
+          return `Modified keyword settings in campaign "${change.campaignName}"`;
+        }
+        
+        // Special handling for audience changes
+        if (change.changeLevel === "Audience") {
+          return `Modified audience settings in campaign "${change.campaignName}"`;
+        }
+      } catch (e) {
+        Logger.log(`Error formatting detailed summary: ${e.message}`);
+      }
+    }
+    
+    return summary;
+  } catch (e) {
+    Logger.log(`Error creating summary: ${e.message}`);
+    return "Change details not available";
+  }
+}
+
 // Custom Menu for Manual Runs
 function onOpen() {
   SpreadsheetApp.getUi()
